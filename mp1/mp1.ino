@@ -24,9 +24,9 @@ const boolean COMMON_ANODE = false;
 
 const int POT_INPUT_PIN = A0;
 
-const int RGB_RED_PIN = 6;
-const int RGB_GREEN_PIN  = 5;
-const int RGB_BLUE_PIN  = 3;
+const int RGB_RED_PIN = 11;
+const int RGB_GREEN_PIN  = 10;
+const int RGB_BLUE_PIN  = 9;
 const int DELAY_INTERVAL = 50; // interval in ms between incrementing hues
 const byte MAX_RGB_VALUE = 255;
 
