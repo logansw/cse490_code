@@ -20,6 +20,26 @@ const int BUZZER_PIN = 6;
 const int VIBRO_PIN = 5;
 const int BUTTON_PIN = 4;
 
+// Game Properties
+const int JUMP_STRENGTH = 6;
+const float LOW_GRAV = 0.4;
+const float HIGH_GRAV = 1;
+const int FLOOR_GAP = 30;
+const int NUM_FLOORS = 4;
+
+// Player Properties
+int xPos = 0;
+int yPos = 0;
+const int Y_LOCK = 30;
+float xVel = 1;
+float yVel = 0;
+boolean isGrounded = true;
+
+// Floor Properties
+int floorHeights[NUM_FLOORS];
+int nearestFloorHeight = floorHeights[0];
+int nextFloorHeight = floorHeights[1];
+
 void setup(){
   Serial.begin(9600);
 
@@ -36,30 +56,86 @@ void setup(){
   pinMode(VIBRO_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  for (int i=0; i<NUM_FLOORS; i++) {
+    floorHeights[i] = FLOOR_GAP * i;
+  }
 }
 
 void loop(){
   // Clear the display
   _display.clearDisplay();
 
-  _display.drawCircle(50, 50, 10, SSD1306_WHITE);
-
+  // Button input (pressed down if val == LOW)
   int val = digitalRead(BUTTON_PIN);
 
-  if (val == LOW) {
-    digitalWrite(RED_PIN, HIGH);
-    digitalWrite(YELLOW_PIN, HIGH);
-    digitalWrite(GREEN_PIN, HIGH);
-    digitalWrite(VIBRO_PIN, HIGH);
-    tone(BUZZER_PIN, 392);
-  } else {
-    digitalWrite(RED_PIN, LOW);
-    digitalWrite(YELLOW_PIN, LOW);
-    digitalWrite(GREEN_PIN, LOW);
-    digitalWrite(VIBRO_PIN, LOW);
-    noTone(BUZZER_PIN);
+  // Turn player around if edge is reached
+  if (xPos > 63 - 6) {
+    xVel = -1;
+  } else if (xPos <= 0) {
+    xVel = 1;
   }
+
+  // Apply gravity if player is not grounded
+  if (!isGrounded) {
+    if (val == LOW) {
+      yVel -= LOW_GRAV;
+    } else {
+      yVel -= HIGH_GRAV;
+    }
+  }
+
+  if (yPos >= nextFloorHeight) {
+    nearestFloorHeight = nextFloorHeight;
+    nextFloorHeight += FLOOR_GAP;
+  }
+
+  // Re-ground if player reaches floor
+  if (yPos <= nearestFloorHeight) {
+    yPos = nearestFloorHeight;
+    isGrounded = true;
+    yVel = 0;
+  }
+
+  // If button is pressed and player is grounded, jump!
+  if (val == LOW && isGrounded) {
+    yVel = JUMP_STRENGTH;
+    isGrounded = false;
+  }
+
+  // Update Positions
+  xPos = xPos + xVel;
+  yPos = yPos + yVel;
+
+  // Draw!
+  drawCar(round(xPos), Y_LOCK);
+  drawFloors();
 
   // Render graphics buffer to screen
   _display.display();
+}
+
+void drawCar(int x, int y) {
+  drawRect(x, y+1, 6, 2);
+  drawRect(x+1, y+3, 4, 2);
+  drawRect(x+1, y, 1, 1);
+  drawRect(x+4, y, 1, 1);
+}
+
+void drawFloors() {
+  for (int i=0; i<NUM_FLOORS; i++) {
+    int y = floorHeights[i]-1-yPos;
+    if (y < 0) {
+      floorHeights[i] += NUM_FLOORS * FLOOR_GAP;
+    } else if (y > 127) {
+      floorHeights[i] -= NUM_FLOORS * FLOOR_GAP;
+    }
+    drawRect(0, y, 64, 1);
+  }
+}
+
+// Draws a rectangle in flipped coordinate system (screen vertical,
+// origin in bottom left.
+void drawRect(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h) {
+  _display.fillRect(y0, x0, h, w, SSD1306_WHITE);
 }
