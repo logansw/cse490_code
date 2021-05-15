@@ -60,6 +60,22 @@ enum GameState {
 
 GameState gameState = NEW_GAME;
 
+// Traffic Light
+enum TrafficLight {
+  RED,
+  YELLOW,
+  GREEN
+};
+
+TrafficLight light = GREEN;
+
+const int YELLOW_TIME = 2000;
+const int RED_TIME = 2000;
+const int GREEN_TIME = 5000;
+
+int currTime;
+int lastTime;
+
 void setup() {
   Serial.begin(9600);
 
@@ -75,18 +91,7 @@ void setup() {
   pinMode(GREEN_PIN, OUTPUT);
   pinMode(VIBRO_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-  for (int i = 0; i < NUM_FLOORS; i++) {
-    floorHeights[i] = FLOOR_GAP * i;
-  }
-
-  nearestFloorHeight = floorHeights[0];
-  nextFloorHeight = floorHeights[1];
-
-  for (int i = 0; i < NUM_CARS; i++) {
-    spawnCar(i);
-  }
+  pinMode(BUTTON_PIN, INPUT_PULLUP); 
 }
 
 void loop() {
@@ -109,6 +114,37 @@ void loop() {
   _display.display();
 }
 
+void trafficLoop() {
+  int difference = deltaTime();
+
+  switch(light) {
+    case RED:
+      if (difference >= RED_TIME) {
+        light = GREEN;
+        digitalWrite(RED_PIN, LOW);
+        digitalWrite(GREEN_PIN, HIGH);
+        lastTime = millis();
+      }
+      break;
+    case YELLOW:
+      if (difference >= YELLOW_TIME) {
+        light = RED;
+        digitalWrite(YELLOW_PIN, LOW);
+        digitalWrite(RED_PIN, HIGH);
+        lastTime = millis();
+      }
+      break;
+    case GREEN:
+      if (difference >= GREEN_TIME) {
+        light = YELLOW;
+        digitalWrite(GREEN_PIN, LOW);
+        digitalWrite(YELLOW_PIN, HIGH);
+        lastTime = millis();
+      }
+      break;
+  };
+}
+
 void newGameLoop() {
   // Button input (pressed down if val == LOW)
   int val = digitalRead(BUTTON_PIN);
@@ -116,12 +152,15 @@ void newGameLoop() {
   drawStartScreen();
 
   if (val == LOW) {
+    reset();
     gameState = PLAYING;
     delay(200);
   }
 }
 
 void gameplayLoop() {
+  trafficLoop();
+  
   // Button input (pressed down if val == LOW)
   int val = digitalRead(BUTTON_PIN);
 
@@ -215,6 +254,11 @@ void reset() {
   for (int i = 0; i < NUM_CARS; i++) {
     spawnCar(i);
   }
+
+  light = GREEN;
+  lastTime = millis();
+  currTime = millis();
+  digitalWrite(GREEN_PIN, HIGH);
 }
 
 void drawCar(int x, int y) {
@@ -228,9 +272,13 @@ void drawFloors() {
   for (int i = 0; i < NUM_FLOORS; i++) {
     int y = floorHeights[i] - 1 - yPos;
     if (y < 0) {
-      floorHeights[i] += NUM_FLOORS * FLOOR_GAP;
-      currentFloor++;
-      spawnCar(i);
+      if (light == RED) {
+        gameOver();
+      } else {
+        floorHeights[i] += NUM_FLOORS * FLOOR_GAP;
+        currentFloor++;
+        spawnCar(i);
+      }
     }
     drawRect(0, y, 64, 1);
   }
@@ -263,6 +311,20 @@ void spawnCar(int i) {
     if (seed % 2 == 0) {
       enemyVel[i] *= -1;
     }
+
+    if (xPos >= enemyPosX[i] && xPos <= enemyPosX[i] + 6) {
+      enemyPosX[i] -= 6;
+      if (enemyPosX[i] <= 0) {
+        enemyPosX[i] += 20;
+      }
+    }
+    
+    if (enemyPosX[i] >= xPos && enemyPosX[i] <= xPos + 6) {
+      enemyPosX[i] += 6;
+      if (enemyPosX[i] >= 63 - 6) {
+        enemyPosX[i] -= 20;
+      }
+    }
   }
 }
 
@@ -271,17 +333,23 @@ void checkCollision() {
     int carMod = currentFloor % NUM_CARS;
     if ((xPos >= enemyPosX[carMod] && xPos <= enemyPosX[carMod] + 6) ||
         (enemyPosX[carMod] >= xPos && enemyPosX[carMod] <= xPos + 6)) {
-      gameState = GAME_OVER;
-      buttonLifted = false;
+      gameOver();
     }
   } else if (yPos >= nextFloorHeight - 5) {
     int carMod = (currentFloor + 1) % NUM_CARS;
     if ((xPos >= enemyPosX[carMod] && xPos <= enemyPosX[carMod] + 6) ||
         (enemyPosX[carMod] >= xPos && enemyPosX[carMod] <= xPos + 6)) {
-      gameState = GAME_OVER;
-      buttonLifted = false;
+      gameOver();
     }
   }
+}
+
+void gameOver() {
+  gameState = GAME_OVER;
+  digitalWrite(RED_PIN, LOW);
+  digitalWrite(YELLOW_PIN, LOW);
+  digitalWrite(GREEN_PIN, LOW);
+  buttonLifted = false;
 }
 
 void displayScore(int score, int x, int y) {
@@ -531,4 +599,8 @@ void drawRect(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h) {
 
 void eraseRect(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h) {
   _display.fillRect(y0, x0, h, w, SSD1306_BLACK);
+}
+
+int deltaTime() {
+  return millis() - lastTime;
 }
