@@ -13,11 +13,12 @@
 // Instantiate SSD1306 driver display object
 Adafruit_SSD1306 _display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-const int RED_PIN = 9;
-const int YELLOW_PIN = 10;
-const int GREEN_PIN = 11;
+// Pins
+const int RED_PIN = 8;
+const int YELLOW_PIN = 12;
+const int GREEN_PIN = 13;
 const int BUZZER_PIN = 6;
-const int VIBRO_PIN = 5;
+const int VIBRO_PIN = 10;
 const int BUTTON_PIN = 4;
 
 // Game Properties
@@ -39,6 +40,10 @@ float xVel = 1;
 float yVel = 0;
 boolean isGrounded = true;
 
+// Buzzer Properties
+unsigned long lastGrounded = 0;
+int baseTone;
+
 // Floor Properties
 int floorHeights[NUM_FLOORS];
 int nearestFloorHeight;
@@ -49,33 +54,31 @@ int enemyPosX[4];
 int enemyVel[4];
 const int NUM_CARS = 4;
 
-// Frame Data
+// Frame Data (for button animation)
 const int FRAME_DELAY = 500;
 
+// Game State
 enum GameState {
   NEW_GAME,
   PLAYING,
   GAME_OVER,
 };
-
 GameState gameState = NEW_GAME;
 
 // Traffic Light
+const int YELLOW_TIME = 2000;
+const int RED_TIME = 2000;
+const int GREEN_TIME = 5000;
 enum TrafficLight {
   RED,
   YELLOW,
   GREEN
 };
+TrafficLight light;
+unsigned long currTime;
+unsigned long lastTime;
 
-TrafficLight light = GREEN;
-
-const int YELLOW_TIME = 2000;
-const int RED_TIME = 2000;
-const int GREEN_TIME = 5000;
-
-int currTime;
-int lastTime;
-
+// Set up!
 void setup() {
   Serial.begin(9600);
 
@@ -94,6 +97,7 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP); 
 }
 
+// Main loop!
 void loop() {
   // Clear the display
   _display.clearDisplay();
@@ -114,37 +118,9 @@ void loop() {
   _display.display();
 }
 
-void trafficLoop() {
-  int difference = deltaTime();
+// V V V | NEW GAME | V V V
 
-  switch(light) {
-    case RED:
-      if (difference >= RED_TIME) {
-        light = GREEN;
-        digitalWrite(RED_PIN, LOW);
-        digitalWrite(GREEN_PIN, HIGH);
-        lastTime = millis();
-      }
-      break;
-    case YELLOW:
-      if (difference >= YELLOW_TIME) {
-        light = RED;
-        digitalWrite(YELLOW_PIN, LOW);
-        digitalWrite(RED_PIN, HIGH);
-        lastTime = millis();
-      }
-      break;
-    case GREEN:
-      if (difference >= GREEN_TIME) {
-        light = YELLOW;
-        digitalWrite(GREEN_PIN, LOW);
-        digitalWrite(YELLOW_PIN, HIGH);
-        lastTime = millis();
-      }
-      break;
-  };
-}
-
+// New game loop
 void newGameLoop() {
   // Button input (pressed down if val == LOW)
   int val = digitalRead(BUTTON_PIN);
@@ -154,12 +130,20 @@ void newGameLoop() {
   if (val == LOW) {
     reset();
     gameState = PLAYING;
-    delay(200);
+    delay(200);   // Delay so that player has a chance to lift button
   }
 }
 
+// ^ ^ ^ | NEW GAME | ^ ^ ^
+
+// V V V | GAMEPLAY | V V V
+
+// Gameplay loop
 void gameplayLoop() {
+  // Track traffic light changes
   trafficLoop();
+  // Play jump sound if yVel is positive
+  jumpSound();
   
   // Button input (pressed down if val == LOW)
   int val = digitalRead(BUTTON_PIN);
@@ -178,6 +162,7 @@ void gameplayLoop() {
     }
   }
 
+  // Advance to next floor if bottom of player crosses next floor
   if (yPos >= nextFloorHeight) {
     nearestFloorHeight = nextFloorHeight;
     nextFloorHeight += FLOOR_GAP;
@@ -193,6 +178,8 @@ void gameplayLoop() {
   // If button is pressed and player is grounded, jump!
   if (val == LOW && isGrounded) {
     yVel = JUMP_STRENGTH;
+    lastGrounded = millis();
+    baseTone = 400 + (rand() % 200);
     isGrounded = false;
   }
 
@@ -216,79 +203,6 @@ void gameplayLoop() {
   drawCars();
 
   displayScore(currentFloor, 4, 122);
-}
-
-void gameOverLoop() {
-  // Button input (pressed down if val == LOW)
-  int val = digitalRead(BUTTON_PIN);
-
-  drawEndScreen();
-
-  if (val == HIGH) {
-    buttonLifted = true;
-  }
-
-  if (buttonLifted && val == LOW) {
-    reset();
-    gameState = PLAYING;
-    delay(200);
-  }
-}
-
-void reset() {
-  currentFloor = 0;
-  consecutive = -1;
-  spawnsLeft = 0;
-  xPos = 1;
-  yPos = 0;
-  xVel = 1;
-  yVel = 0;
-  isGrounded = true;
-  for (int i = 0; i < NUM_FLOORS; i++) {
-    floorHeights[i] = FLOOR_GAP * i;
-  }
-
-  nearestFloorHeight = floorHeights[0];
-  nextFloorHeight = floorHeights[1];
-
-  for (int i = 0; i < NUM_CARS; i++) {
-    spawnCar(i);
-  }
-
-  light = GREEN;
-  lastTime = millis();
-  currTime = millis();
-  digitalWrite(GREEN_PIN, HIGH);
-}
-
-void drawCar(int x, int y) {
-  drawRect(x, y + 1, 6, 2);
-  drawRect(x + 1, y + 3, 4, 2);
-  drawRect(x + 1, y, 1, 1);
-  drawRect(x + 4, y, 1, 1);
-}
-
-void drawFloors() {
-  for (int i = 0; i < NUM_FLOORS; i++) {
-    int y = floorHeights[i] - 1 - yPos;
-    if (y < 0) {
-      if (light == RED) {
-        gameOver();
-      } else {
-        floorHeights[i] += NUM_FLOORS * FLOOR_GAP;
-        currentFloor++;
-        spawnCar(i);
-      }
-    }
-    drawRect(0, y, 64, 1);
-  }
-}
-
-void drawCars() {
-  for (int i = 0; i < NUM_CARS; i++) {
-    int y = floorHeights[i] - yPos;
-    drawCar(enemyPosX[i], y);
-  }
 }
 
 void spawnCar(int i) {
@@ -328,6 +242,16 @@ void spawnCar(int i) {
   }
 }
 
+// Plays a rising sound when player jumps
+void jumpSound() {
+  int rise = (millis() - lastGrounded) / 4;
+  if (yVel > 0) {
+    tone(BUZZER_PIN, baseTone + rise);
+  } else {
+    noTone(BUZZER_PIN);
+  }
+}
+
 void checkCollision() {
   if (yPos <= nearestFloorHeight + 5) {
     int carMod = currentFloor % NUM_CARS;
@@ -344,14 +268,163 @@ void checkCollision() {
   }
 }
 
+// ^ ^ ^ | GAMEPLAY | ^ ^ ^
+
+// V V V | TRAFFIC | V V V
+
+// Manages traffic light changes
+void trafficLoop() {
+  int difference = deltaTime();
+  // Vibrate when light change occurs
+  if (difference < 100) {
+    analogWrite(VIBRO_PIN, 200);
+  } else {
+    analogWrite(VIBRO_PIN, 0);
+  }
+
+  switch(light) {
+    case RED:
+      if (difference >= RED_TIME) {
+        light = GREEN;
+        digitalWrite(RED_PIN, LOW);
+        digitalWrite(GREEN_PIN, HIGH);
+        lastTime = millis();
+      }
+      break;
+    case YELLOW:
+      if (difference >= YELLOW_TIME) {
+        light = RED;
+        digitalWrite(YELLOW_PIN, LOW);
+        digitalWrite(RED_PIN, HIGH);
+        lastTime = millis();
+      }
+      break;
+    case GREEN:
+      if (difference >= GREEN_TIME) {
+        light = YELLOW;
+        digitalWrite(GREEN_PIN, LOW);
+        digitalWrite(YELLOW_PIN, HIGH);
+        lastTime = millis();
+      }
+      break;
+  };
+}
+
+// Returns time passed since |lastTime|
+int deltaTime() {
+  return millis() - lastTime;
+}
+
+// ^ ^ ^ | TRAFFIC | ^ ^ ^
+
+// V V V | GAMEOVER | V V V
+
+// Game over loop
+void gameOverLoop() {
+  // Button input (pressed down if val == LOW)
+  int val = digitalRead(BUTTON_PIN);
+
+  drawEndScreen();
+
+  if (val == HIGH) {
+    buttonLifted = true;
+  }
+
+  if (buttonLifted && val == LOW) {
+    reset();
+    gameState = PLAYING;
+    delay(200);
+  }
+}
+
 void gameOver() {
+  noTone(BUZZER_PIN);
+  // Short buzz
+  analogWrite(VIBRO_PIN, 200);
+  delay(100);
+  // Intermission
+  analogWrite(VIBRO_PIN, 0);
+  delay(50);
+  // Fade-out buzz
+  for (int i = 200; i > 0; i--) {
+    analogWrite(VIBRO_PIN, i);
+    delay(3);
+  }
   gameState = GAME_OVER;
   digitalWrite(RED_PIN, LOW);
   digitalWrite(YELLOW_PIN, LOW);
-  digitalWrite(GREEN_PIN, LOW);
+  digitalWrite(GREEN_PIN, LOW);  
   buttonLifted = false;
 }
 
+// Reset all relevant game parameters
+void reset() {
+  currentFloor = 0;
+  consecutive = -1;
+  spawnsLeft = 0;
+  xPos = 1;
+  yPos = 0;
+  xVel = 1;
+  yVel = 0;
+  isGrounded = true;
+  for (int i = 0; i < NUM_FLOORS; i++) {
+    floorHeights[i] = FLOOR_GAP * i;
+  }
+
+  nearestFloorHeight = floorHeights[0];
+  nextFloorHeight = floorHeights[1];
+
+  for (int i = 0; i < NUM_CARS; i++) {
+    spawnCar(i);
+  }
+
+  light = GREEN;
+  lastTime = millis();
+  currTime = millis();
+  digitalWrite(GREEN_PIN, HIGH);
+}
+
+// ^ ^ ^ | GAMEOVER | ^ ^ ^
+
+// V V V | DRAW | V V V
+
+// Draws a single car on screen at specified position
+void drawCar(int x, int y) {
+  drawRect(x, y + 1, 6, 2);
+  drawRect(x + 1, y + 3, 4, 2);
+  drawRect(x + 1, y, 1, 1);
+  drawRect(x + 4, y, 1, 1);
+}
+
+// Draws all cars
+void drawCars() {
+  for (int i = 0; i < NUM_CARS; i++) {
+    int y = floorHeights[i] - yPos;
+    drawCar(enemyPosX[i], y);
+  }
+}
+
+// Renders all floors at appropriate heights and checks for
+// any redlight runs
+void drawFloors() {
+  for (int i = 0; i < NUM_FLOORS; i++) {
+    int y = floorHeights[i] - 1 - yPos;
+    // If player crosses to the next floor...
+    if (y < 0) {
+      // ... and the light is red
+      if (light == RED) {
+        gameOver();
+      } else {  // ... and the light is yellow/green
+        floorHeights[i] += NUM_FLOORS * FLOOR_GAP;
+        currentFloor++;
+        spawnCar(i);
+      }
+    }
+    drawRect(0, y, 64, 1);
+  }
+}
+
+// Displays current score
 void displayScore(int score, int x, int y) {
   int temp = score;
   int len = 0;
@@ -367,6 +440,7 @@ void displayScore(int score, int x, int y) {
   }
 }
 
+// Draws the specified digit to the screen (vertically)
 void drawDigit(int digit, int x, int y) {
   switch (digit) {
     case 1:
@@ -404,6 +478,7 @@ void drawDigit(int digit, int x, int y) {
   }
 }
 
+// Draws a one on the screen (vertically!)
 void drawOne(int x, int y) {
   drawRect(x, y + 4, 2, 1);
   drawRect(x + 1, y + 1, 1, 3);
@@ -463,7 +538,9 @@ void drawZero(int x, int y) {
   _display.fillRect(y + 1, x + 1, 3, 1, SSD1306_BLACK);
 }
 
+// Draws start screen: "JMP|CR" + button
 void drawStartScreen() {
+  // Start position of "JMP|CR"
   int x = 8;
   int y = 70;
   // White background
@@ -515,19 +592,9 @@ void drawStartScreen() {
   drawButton();
 }
 
-void drawButton() {
-  if (millis() % (2 * FRAME_DELAY) >= FRAME_DELAY) {
-    eraseRect(28, 30, 8, 3);
-    eraseRect(29, 33, 6, 3);
-  } else {
-    eraseRect(28, 30, 8, 3);
-    eraseRect(29, 33, 6, 1);
-    eraseRect(26, 35, 1, 1);
-    eraseRect(38, 35, 1, 1);
-  }
-}
-
+// Displays the end screen: "CRASH" + score + button
 void drawEndScreen() {
+  // Start position for "CRASH" text
   int x = 8;
   int y = 80;
   // White background
@@ -591,16 +658,26 @@ void drawEndScreen() {
   drawButton();
 }
 
+// Draws an 2-step animated button to the screen
+void drawButton() {
+  if (millis() % (2 * FRAME_DELAY) >= FRAME_DELAY) {
+    eraseRect(28, 30, 8, 3);
+    eraseRect(29, 33, 6, 3);
+  } else {
+    eraseRect(28, 30, 8, 3);
+    eraseRect(29, 33, 6, 1);
+    eraseRect(26, 35, 1, 1);
+    eraseRect(38, 35, 1, 1);
+  }
+}
+
 // Draws a rectangle in flipped coordinate system (screen vertical,
 // origin in bottom left.
 void drawRect(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h) {
   _display.fillRect(y0, x0, h, w, SSD1306_WHITE);
 }
 
+// Same as drawRect, but draws in black.
 void eraseRect(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h) {
   _display.fillRect(y0, x0, h, w, SSD1306_BLACK);
-}
-
-int deltaTime() {
-  return millis() - lastTime;
 }

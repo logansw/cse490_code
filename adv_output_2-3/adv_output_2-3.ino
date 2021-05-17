@@ -1,5 +1,5 @@
-const int VIBROMOTOR_OUTPUT_PIN = 3;
-const int BUTTON_PIN = 12;
+const int VIBROMOTOR_OUTPUT_PIN = 5;
+const int BUTTON_PIN = 4;
 
 void setup() {
   // put your setup code here, to run once:
@@ -8,9 +8,16 @@ void setup() {
 }
 
 void loop() {
+
+  secondLoop();
+
+  // delay(50);
+}
+
+void secondLoop() {
   // put your main code here, to run repeatedly:
   int val = digitalRead(BUTTON_PIN);
-
+  
   if (val == LOW) {
     // Short buzz
     analogWrite(VIBROMOTOR_OUTPUT_PIN, 255);
@@ -24,6 +31,4 @@ void loop() {
       delay(3);
     }
   } 
-
-  delay(50);
 }
