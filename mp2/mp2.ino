@@ -198,7 +198,7 @@ void gameplayLoop() {
   checkCollision();
 
   // Draw!
-  drawCar(round(xPos), Y_LOCK);
+  drawPlayer(round(xPos), Y_LOCK);
   drawFloors();
   drawCars();
 
@@ -389,6 +389,11 @@ void reset() {
 // V V V | DRAW | V V V
 
 // Draws a single car on screen at specified position
+void drawPlayer(int x, int y) {
+  drawCar(x, y);
+  eraseRect(x+2, y+2, 2, 2);
+}
+
 void drawCar(int x, int y) {
   drawRect(x, y + 1, 6, 2);
   drawRect(x + 1, y + 3, 4, 2);
@@ -396,7 +401,7 @@ void drawCar(int x, int y) {
   drawRect(x + 4, y, 1, 1);
 }
 
-// Draws all cars
+// Draws all enemy cars
 void drawCars() {
   for (int i = 0; i < NUM_CARS; i++) {
     int y = floorHeights[i] - yPos;
