@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <title>Web Serial Demo</title>
+        <script src="https://cdn.jsdelivr.net/gh/makeabilitylab/p5js/_libraries/serial.js"></script>
+        <link rel="stylesheet" href="styles.css">
+    </head>
+
+    <body>
+        <div id="main-content">
+
+            <button id="connect-button" onclick="onButtonConnectToSerialDevice()">
+                Connect via Serial Port
+            </button>
+            <div id="text-interface" style="display:none">
+                <button id="click_button" onclick="onButtonClick()">
+                    CLICK
+                </button>
+
+                <h3>Display count:</h3>
+                <p id="output_count"></p>
+
+                <h3>Received from Arduino:</h3>
+                <p id="received_count"></p>
+            </div>
+        </div>
+
+        <script>
+            const outputCount = document.getElementById('output_count');
+            const rcvdCount = document.getElementById('received_count');
+
+            let count = 0;
+
+            // Send text data over serial
+            async function serialWriteTextData(textData) {
+                if (serial.isOpen()) {
+                    console.log("Writing to serial: ", textData);
+                    serial.writeLine(textData);
+                }
+            }
+
+            // Setup Web Serial using serial.js
+            const serial = new Serial();
+            serial.on(SerialEvents.CONNECTION_OPENED, onSerialConnectionOpened);
+            serial.on(SerialEvents.CONNECTION_CLOSED, onSerialConnectionClosed);
+            serial.on(SerialEvents.DATA_RECEIVED, onSerialDataReceived);
+            serial.on(SerialEvents.ERROR_OCCURRED, onSerialErrorOccurred);
+
+            async function onButtonConnectToSerialDevice() {
+              console.log("onButtonConnectToSerialDevice");
+              if (!serial.isOpen()) {
+                await serial.connectAndOpen();
+              }
+            }
+
+            function onButtonClick() {
+                count++;
+                outputCount.textContent = count;
+                serialWriteTextData(count);
+            }
+
+            function onSerialErrorOccurred(eventSender, error) {
+              console.log("onSerialErrorOccurred", error);
+            }
+
+            function onSerialConnectionOpened(eventSender) {
+                console.log("onSerialConnectionOpened");
+                document.getElementById("connect-button").style.display = "none";
+                document.getElementById("text-interface").style.display = "block";
+            }
+
+            function onSerialConnectionClosed(eventSender) {
+              console.log("onSerialConnectionClosed", eventSender);
+            }
+
+            function onSerialDataReceived(eventSender, newData) {
+              console.log("onSerialDataReceived", newData);
+            }
+
+            async function onConnectButtonClick() {
+              console.log("Connect button clicked!");
+            }
+
+            function onSerialDataReceived(eventSender, newData) {
+                console.log("onSerialDataReceived", newData);
+                rcvdCount.textContent = newData;
+            }
+        </script>
+    </body>
+</html>
