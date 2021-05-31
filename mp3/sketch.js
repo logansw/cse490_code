@@ -66,10 +66,10 @@ async function draw() {
   // image(eyes[0], 0, 0, 50, 50);
 
   if(human){
-    drawEye(human.pose.leftEye.x, human.pose.leftEye.y, eyes[0]);
-    drawEye(human.pose.rightEye.x, human.pose.rightEye.y, eyes[0]);
+    drawEye(human.pose.leftEye.x, human.pose.leftEye.y, eyes[8]);
+    drawEye(human.pose.rightEye.x, human.pose.rightEye.y, eyes[8]);
 
-    drawNose(human.pose.nose.x, human.pose.nose.y, noses[0]);
+    drawNose(human.pose.nose.x, human.pose.nose.y, noses[7]);
   }else{
     noStroke();
     fill(255);
