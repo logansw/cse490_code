@@ -2,6 +2,11 @@ let faceapi;
 let video;
 let detections;
 
+const MIN_WIDTH = 1.0;
+const MAX_WIDTH = 4.0;
+const MIN_HEIGHT = 1.0;
+const MAX_HEIGHT = 4.0;
+
 const features = {
   BROWS: 0,
   EYES: 1,
@@ -11,7 +16,9 @@ const features = {
 
 let feature = features.BROWS;
 
-let indices = [5, 0, 0, 0];
+let indices = [0, 0, 0, 0];
+let widths = [1.0, 1.0, 1.0, 1.0];
+let heights = [1.0, 3.0, 1.0, 1.0];
 let maximums;
 
 let serialOptions = { baudRate: 115200 };
@@ -86,32 +93,43 @@ function drawLandmarks(detections) {
   }
 }
 
+function drawBrow(part) {
+  let bounds = getDimensions(part);
+  let w1 = bounds[2] - bounds[0];
+  let h1 = bounds[3] - bounds[1];
+  let w2 = w1 * widths[features.BROWS];
+  let h2 = h1 * heights[features.BROWS];
+
+  image(brows[indices[features.BROWS]], bounds[0] - ((w2 - w1) / 2), bounds[1] - ((h2 - h1) / 2), w2, h2);
+}
+
 function drawEye(part) {
   let bounds = getDimensions(part);
-  let width = bounds[2] - bounds[0];
-  let height = bounds[3] - bounds[1];
-  image(eyes[indices[features.EYES]], bounds[0] - (width / 2), bounds[1] - (height / 2) - (width / 2), width*2, width*2);
+  let w1 = bounds[2] - bounds[0];
+  let h1 = bounds[3] - bounds[1];
+  let w2 = w1 * widths[features.EYES] * 2;
+  let h2 = h1 * heights[features.EYES] * 2;
+
+  image(eyes[indices[features.EYES]], bounds[0] - ((w2 - w1) / 2), bounds[1] - ((h2 - h1) / 2), w2, h2);
 }
 
 function drawNose(part) {
   let bounds = getDimensions(part);
-  let width = 2 * (bounds[2] - bounds[0]);
-  let height = bounds[3] - bounds[1];
-  image(noses[indices[features.NOSE]], part[0]._x - (width / 2), bounds[1] - (height / 4), width, 1.5 * height);
-}
 
-function drawBrow(part) {
-  let bounds = getDimensions(part);
-  let width = bounds[2] - bounds[0];
-  let height = bounds[3] - bounds[1];
-  image(brows[indices[features.BROWS]], bounds[0], bounds[1] - (height / 4), width, 1.5 * height);
+  let w1 = bounds[2] - bounds[0];
+  let h1 = bounds[3] - bounds[1];
+  let w2 = 2 * w1 * widths[features.NOSE];
+  let h2 = h1 * heights[features.NOSE];
+  image(noses[indices[features.NOSE]], bounds[0] - ((w2 - w1) / 2), bounds[1] - ((h2 - h1) / 2), w2, h2);
 }
 
 function drawMouth(part) {
   let bounds = getDimensions(part);
-  let width = bounds[2] - bounds[0];
-  let height = bounds[3] - bounds[1];
-  image(mouths[indices[features.MOUTH]], bounds[0], bounds[1], width, height);
+  let w1 = bounds[2] - bounds[0];
+  let h1 = bounds[3] - bounds[1];
+  let w2 = w1 * widths[features.MOUTH];
+  let h2 = h1 * heights[features.MOUTH];
+  image(mouths[indices[features.MOUTH]], bounds[0] - ((w2 - w1) / 2), bounds[1] - ((h2 - h1) / 2), w2, h2);
 }
 
 function getDimensions(points) {
@@ -188,23 +206,72 @@ function onSerialDataReceived(eventSender, newData) {
     hasChanged = true;
   }
 
+  if (newData == "increase_width") {
+    widths[feature] += 0.1;
+    if (widths[feature] > MAX_WIDTH) {
+      widths[feature] = MAX_WIDTH;
+    }
+  } else if (newData == "decrease_width") {
+    widths[feature] -= 0.1;
+    if (widths[feature] < MIN_WIDTH) {
+      widths[feature] = MIN_WIDTH;
+    }
+  } else if (newData == "increase_height") {
+    heights[feature] += 0.1;
+    if (heights[feature] > MAX_HEIGHT) {
+      heights[feature] = MAX_HEIGHT;
+    }
+  } else if (newData == "decrease_height") {
+    heights[feature] -= 0.1;
+    if (heights[feature] < MIN_HEIGHT) {
+      heights[feature] = MIN_HEIGHT;
+    }
+  }
+
   if (hasChanged) {
     let message = "";
     switch (feature) {
       case features.BROWS:
-        message = message + "Brow ";
+        message = message + "Brow -- ";
+        if (indices[features.BROWS] == 0) {
+          message = message + "  0 >";
+        } else if (indices[features.BROWS] == 9) {
+          message = message + "< 9  ";
+        } else {
+          message = message + "< " + indices[features.BROWS] + " >";
+        }
         break;
       case features.EYES:
-        message = message + "Eye ";
+        message = message + "Eye --- ";
+        if (indices[features.EYES] == 0) {
+          message = message + "  0 >";
+        } else if (indices[features.EYES] == 9) {
+          message = message + "< 9  ";
+        } else {
+          message = message + "< " + indices[features.EYES] + " >";
+        }
         break;
       case features.NOSE:
-        message = message + "Nose ";
+        message = message + "Nose -- ";
+        if (indices[features.NOSE] == 0) {
+          message = message + "  0 >";
+        } else if (indices[features.NOSE] == 9) {
+          message = message + "< 9  ";
+        } else {
+          message = message + "< " + indices[features.NOSE] + " >";
+        }
         break;
       case features.MOUTH:
-        message = message + "Mouth ";
+        message = message + "Mouth - ";
+        if (indices[features.MOUTH] == 0) {
+          message = message + "  0 >";
+        } else if (indices[features.MOUTH] == 9) {
+          message = message + "< 9  ";
+        } else {
+          message = message + "< " + indices[features.MOUTH] + " >";
+        }
         break;
     }
-    message = message + indices[feature];
     serial.writeLine(message);
   }
 }

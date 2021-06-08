@@ -19,9 +19,18 @@ const int VIBRO_PIN = 12;
 const int BTN_PIN = 11;
 
 const int DELAY_TIME = 200;
-const int TOLERANCE = 50;
+const int TOLERANCE = 70;
+
+const int X_MARGIN = 28;
+const int LINE_HEIGHT = 12;
 
 String rcvdSerialData;
+
+int feature = 0;
+String browMessage;
+String eyeMessage;
+String noseMessage;
+String mouthMessage;
 
 void setup() {
   Serial.begin(115200);
@@ -33,6 +42,16 @@ void setup() {
     for (;;); // Don't proceed, loop forever
   }
 
+  pinMode(X_PIN, INPUT);
+  pinMode(Y_PIN, INPUT);
+  pinMode(VIBRO_PIN, OUTPUT);
+  pinMode(BTN_PIN, INPUT_PULLUP);
+
+  browMessage   = "Brow --   0 >";
+  eyeMessage    = "Eye ---   0 >";
+  noseMessage   = "Nose --   0 >";
+  mouthMessage  = "Mouth -   0 >";
+
   _display.setTextColor(SSD1306_WHITE);
 }
 
@@ -41,8 +60,41 @@ void loop() {
   _display.clearDisplay();
 
   input();
-  _display.println(rcvdSerialData);
+
+  displayText();
+  
+  // _display.println(rcvdSerialData);
   output();
+}
+
+void displayText() {
+  if (feature == 0) {
+    _display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+  }
+  _display.setCursor(X_MARGIN, LINE_HEIGHT);
+  _display.println(browMessage);
+  _display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+
+  if (feature == 1) {
+    _display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+  }
+  _display.setCursor(X_MARGIN, LINE_HEIGHT * 2);
+  _display.println(eyeMessage);
+  _display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+
+  if (feature == 2) {
+    _display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+  }
+  _display.setCursor(X_MARGIN, LINE_HEIGHT * 3);
+  _display.println(noseMessage);
+  _display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+
+  if (feature == 3) {
+    _display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+  }
+  _display.setCursor(X_MARGIN, LINE_HEIGHT * 4);
+  _display.println(mouthMessage);
+  _display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
 }
 
 void output() {
@@ -51,21 +103,46 @@ void output() {
   int x = map(analogRead(X_PIN), 0, 1023, 100, -100);
   int y = map(analogRead(Y_PIN), 0, 1023, -100, 100);
 
+  int btnVal = digitalRead(BTN_PIN);
+
   bool pause = false;
 
-  if (x < -TOLERANCE) {
-    Serial.println("left");
-    pause = true;
-  } else if (x > TOLERANCE) {
-    Serial.println("right");
-    pause = true;
-  }
-  if (y < -TOLERANCE) {
-    Serial.println("down");
-    pause = true;
-  } else if (y > TOLERANCE) {
-    Serial.println("up");
-    pause = true;
+  if (btnVal == HIGH) {
+    if (x < -TOLERANCE) {
+      Serial.println("left");
+      pause = true;
+    } else if (x > TOLERANCE) {
+      Serial.println("right");
+      pause = true;
+    }
+    if (y < -TOLERANCE) {
+      Serial.println("down");
+      feature++;
+      if (feature > 3)
+        feature = 3;
+      pause = true;
+    } else if (y > TOLERANCE) {
+      Serial.println("up");
+      feature--;
+      if (feature < 0)
+        feature = 0;
+      pause = true;
+    }
+  } else {
+    if (x < -TOLERANCE) {
+      Serial.println("decrease_width");
+      pause = true;
+    } else if (x > TOLERANCE) {
+      Serial.println("increase_width");
+      pause = true;
+    }
+    if (y < -TOLERANCE) {
+      Serial.println("decrease_height");
+      pause = true;
+    } else if (y > TOLERANCE) {
+      Serial.println("increase_height");
+      pause = true;
+    }
   }
 
   _display.display();
@@ -73,11 +150,17 @@ void output() {
     delay(DELAY_TIME);
 }
 
-void input() {
-  _display.setCursor(12, 32);
-  
+void input() {  
   if (Serial.available() > 0) {
-    rcvdSerialData = Serial.readStringUntil('\n');
+    if (feature == 0) {
+      browMessage = Serial.readStringUntil('\n');
+    } else if (feature == 1) {
+      eyeMessage = Serial.readStringUntil('\n');
+    } else if (feature == 2) {
+      noseMessage = Serial.readStringUntil('\n');
+    } else if (feature == 3) {
+      mouthMessage = Serial.readStringUntil('\n');
+    }
     buzz();
   }
 }
