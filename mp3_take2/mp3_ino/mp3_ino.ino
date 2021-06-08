@@ -18,15 +18,23 @@ const int Y_PIN = A1;
 const int VIBRO_PIN = 12;
 const int BTN_PIN = 11;
 
+// How long to wait between each input(ms) to prevent scrolling too fast
 const int DELAY_TIME = 200;
+// How far joystick needs to be tilted before registering input (%)
 const int TOLERANCE = 70;
 
+// Number of pixels from the left edge of the screen text is drawn
 const int X_MARGIN = 28;
+// Number of pixels between lines
 const int LINE_HEIGHT = 12;
 
-String rcvdSerialData;
-
+// Tracks which feature is selected.
+// 0 - Brows
+// 1 - Eyes
+// 2 - Nose
+// 3 - Mouth
 int feature = 0;
+// Each line gets a corresponding String to display which image is selected
 String browMessage;
 String eyeMessage;
 String noseMessage;
@@ -56,17 +64,32 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   _display.clearDisplay();
 
   input();
-
-  displayText();
-  
-  // _display.println(rcvdSerialData);
   output();
+
+  // _display.display() found in displayText()
 }
 
+// Checks for incoming data from computer to arduino
+void input() {  
+  if (Serial.available() > 0) {
+    if (feature == 0) {
+      browMessage = Serial.readStringUntil('\n');
+    } else if (feature == 1) {
+      eyeMessage = Serial.readStringUntil('\n');
+    } else if (feature == 2) {
+      noseMessage = Serial.readStringUntil('\n');
+    } else if (feature == 3) {
+      mouthMessage = Serial.readStringUntil('\n');
+    }
+    buzz();
+    displayText();
+  }
+}
+
+// Updates text on OLED screen
 void displayText() {
   if (feature == 0) {
     _display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
@@ -95,19 +118,23 @@ void displayText() {
   _display.setCursor(X_MARGIN, LINE_HEIGHT * 4);
   _display.println(mouthMessage);
   _display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+
+  // Display here
+  _display.display();
 }
 
+// Sends data from arduino to computer if user has interacted with controller
 void output() {
-  _display.setCursor(20, 20);
-
   int x = map(analogRead(X_PIN), 0, 1023, 100, -100);
   int y = map(analogRead(Y_PIN), 0, 1023, -100, 100);
 
   int btnVal = digitalRead(BTN_PIN);
 
+  // If user sends input, set pause to true. We want to prevent repeated input so
+  // we briefly delay() if pause is set to true.
   bool pause = false;
 
-  if (btnVal == HIGH) {
+  if (btnVal == HIGH) {   // Button is not held down
     if (x < -TOLERANCE) {
       Serial.println("left");
       pause = true;
@@ -128,7 +155,7 @@ void output() {
         feature = 0;
       pause = true;
     }
-  } else {
+  } else {    // Button is held down
     if (x < -TOLERANCE) {
       Serial.println("decrease_width");
       pause = true;
@@ -145,26 +172,11 @@ void output() {
     }
   }
 
-  _display.display();
   if (pause)
     delay(DELAY_TIME);
 }
 
-void input() {  
-  if (Serial.available() > 0) {
-    if (feature == 0) {
-      browMessage = Serial.readStringUntil('\n');
-    } else if (feature == 1) {
-      eyeMessage = Serial.readStringUntil('\n');
-    } else if (feature == 2) {
-      noseMessage = Serial.readStringUntil('\n');
-    } else if (feature == 3) {
-      mouthMessage = Serial.readStringUntil('\n');
-    }
-    buzz();
-  }
-}
-
+// Vibrates vibromotor briefly
 void buzz() {
   analogWrite(VIBRO_PIN, 200);
   delay(100);
