@@ -2,11 +2,13 @@ let faceapi;
 let video;
 let detections;
 
+// Max/Min width + height scalings for features
 const MIN_WIDTH = 1.0;
 const MAX_WIDTH = 4.0;
 const MIN_HEIGHT = 1.0;
 const MAX_HEIGHT = 4.0;
 
+// Enum for facial features
 const features = {
   BROWS: 0,
   EYES: 1,
@@ -14,11 +16,16 @@ const features = {
   MOUTH: 3,
 }
 
+// Currently selected feature
 let feature = features.BROWS;
 
+// Currently selected item within each feature (index corresponds to feature)
 let indices = [0, 0, 0, 0];
+// Widths for each feature
 let widths = [1.0, 1.0, 1.0, 1.0];
+// Heights for each feature
 let heights = [1.0, 3.0, 1.0, 1.0];
+// Maximum number of items in each feature (array)
 let maximums;
 
 let serialOptions = { baudRate: 115200 };
@@ -81,6 +88,7 @@ function gotResults(err, result) {
   faceapi.detect(gotResults);
 }
 
+// Draws all facial features on all detected faces
 function drawLandmarks(detections) {
   for (let i = 0; i < detections.length; i++) {
     let detection = detections[i];
@@ -95,11 +103,16 @@ function drawLandmarks(detections) {
 
 function drawBrow(part) {
   let bounds = getDimensions(part);
+  // Width of actual eyebrow
   let w1 = bounds[2] - bounds[0];
+  // Height of actual eyebrow
   let h1 = bounds[3] - bounds[1];
+  // Scaled width
   let w2 = w1 * widths[features.BROWS];
+  // Scaled height
   let h2 = h1 * heights[features.BROWS];
 
+  // Draw item on eyebrow, positioned properly
   image(brows[indices[features.BROWS]], bounds[0] - ((w2 - w1) / 2), bounds[1] - ((h2 - h1) / 2), w2, h2);
 }
 
@@ -132,6 +145,8 @@ function drawMouth(part) {
   image(mouths[indices[features.MOUTH]], bounds[0] - ((w2 - w1) / 2), bounds[1] - ((h2 - h1) / 2), w2, h2);
 }
 
+// Takes a list of coordinates for a facial feature and returns
+// the min and max for x and y
 function getDimensions(points) {
   let xMin = 10000;
   let xMax = 0;
@@ -192,6 +207,7 @@ function onSerialDataReceived(eventSender, newData) {
 
   let hasChanged = false;
 
+  // Input to rotate through items for the selected feature
   if (newData == "left" && indices[feature] > 0) {
     indices[feature]--;
     hasChanged = true;
@@ -206,6 +222,7 @@ function onSerialDataReceived(eventSender, newData) {
     hasChanged = true;
   }
 
+  // Input to change the size of the selected feature
   if (newData == "increase_width") {
     widths[feature] += 0.1;
     if (widths[feature] > MAX_WIDTH) {
@@ -228,6 +245,8 @@ function onSerialDataReceived(eventSender, newData) {
     }
   }
 
+  // If the item has been updated, send a message to update the text displayed
+  // on the OLED by the arduino
   if (hasChanged) {
     let message = "";
     switch (feature) {
